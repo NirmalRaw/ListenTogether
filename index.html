@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎵 SyncListen - Listen Together</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh; 
+      color: white; 
+    }
+    .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+    .header { text-align: center; margin-bottom: 30px; }
+    .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+    .room-input { 
+      display: flex; gap: 10px; margin-bottom: 20px; 
+      flex-wrap: wrap; justify-content: center;
+    }
+    .room-input input { 
+      padding: 15px 20px; font-size: 16px; border: none; 
+      border-radius: 25px; width: 250px; outline: none;
+    }
+    .btn { 
+      padding: 15px 25px; font-size: 16px; border: none; 
+      border-radius: 25px; cursor: pointer; transition: all 0.3s;
+      font-weight: 600; min-width: 120px;
+    }
+    .btn-primary { background: #ff6b6b; color: white; }
+    .btn-primary:hover { background: #ff5252; transform: translateY(-2px); }
+    .btn-secondary { background: rgba(255,255,255,0.2); color: white; }
+    .btn-secondary:hover { background: rgba(255,255,255,0.3); }
+    
+    .room-section { 
+      background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+      border-radius: 20px; padding: 30px; margin-top: 20px;
+    }
+    .room-info { 
+      display: flex; justify-content: space-between; align-items: center; 
+      margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.2);
+    }
+    .share-link { 
+      background: rgba(0,0,0,0.2); padding: 10px 15px; 
+      border-radius: 15px; font-size: 14px; word-break: break-all;
+    }
+    .copy-btn { background: #4ecdc4; color: #000; font-weight: 600; padding: 8px 15px; margin-left: 10px; }
+    
+    .video-input { display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; }
+    .video-input input { flex: 1; min-width: 300px; }
+    
+    #player { 
+      position: relative; margin: 0 auto 25px; 
+      border-radius: 15px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    }
+    
+    .controls { 
+      display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .control-group { text-align: center; }
+    .control-group button { margin: 0 5px; }
+    
+    .status { 
+      text-align: center; padding: 15px; 
+      border-radius: 15px; background: rgba(255,255,255,0.1);
+      margin-top: 20px;
+    }
+    .status.playing { background: rgba(76, 175, 80, 0.3); }
+    .status.paused { background: rgba(255, 152, 0, 0.3); }
+    
+    .users { 
+      display: flex; gap: 10px; justify-content: center; 
+      margin-top: 15px; flex-wrap: wrap;
+    }
+    .user { 
+      background: rgba(255,255,255,0.2); padding: 8px 15px; 
+      border-radius: 20px; font-size: 14px;
+    }
+    
+    @media (max-width: 768px) {
+      .container { padding: 15px; }
+      .header h1 { font-size: 2em; }
+      .room-input, .video-input { flex-direction: column; align-items: center; }
+      .room-input input, .video-input input { width: 100%; max-width: 400px; }
+      #player { width: 100% !important; height: 250px !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎵 SyncListen</h1>
+      <p>Listen to YouTube together in perfect sync</p>
+    </div>
+
+    <div class="room-input">
+      <input id="roomId" placeholder="Enter room name (e.g. friends-party)" value="">
+      <button class="btn btn-primary" id="joinBtn">Create/Join Room</button>
+    </div>
+
+    <div id="roomSection" style="display: none;">
+      <div class="room-section">
+        <div class="room-info">
+          <div>
+            <strong>Room: <span id="roomLabel"></span></strong>
+            <div class="users" id="usersList"></div>
+          </div>
+          <div>
+            <input id="shareUrl" class="share-link" readonly>
+            <button class="btn copy-btn" id="copyBtn">Copy Link</button>
+          </div>
+        </div>
+
+        <div class="video-input">
+          <input id="videoIdInput" placeholder="Paste YouTube video ID (e.g. dQw4w9WgXcQ)">
+          <button class="btn btn-primary" id="setVideoBtn">Set Video</button>
+        </div>
+
+        <div id="player"></div>
+
+        <div class="controls">
+          <div class="control-group">
+            <button class="btn btn-primary" id="playBtn">▶️ Play</button>
+            <button class="btn btn-secondary" id="pauseBtn">⏸️ Pause</button>
+          </div>
+          <div class="control-group">
+            <button class="btn btn-secondary" id="prevBtn">⏮️ Prev 10s</button>
+            <button class="btn btn-secondary" id="nextBtn">⏭️ Next 10s</button>
+          </div>
+        </div>
+
+        <div class="status" id="status">
+          Waiting for video...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js';
+    import { getDatabase, ref, onValue, set, onDisconnect } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js';
+
+    // REPLACE WITH YOUR FIREBASE CONFIG (get from Firebase Console > Project Settings)
+    const firebaseConfig = {
+  apiKey: "AIzaSyA_REgMkJMVigaxO7-zOhw-RBnUMbrsFhA",
+  authDomain: "listentogether-57215.firebaseapp.com",
+  projectId: "listentogether-57215",
+  storageBucket: "listentogether-57215.firebasestorage.app",
+  messagingSenderId: "408010636908",
+  appId: "1:408010636908:web:244aa860ff2fb1220e6249",
+  measurementId: "G-QD4ZSY4T8D"
+};
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+  </script>
+
+  <!-- Socket fallback or Socket.IO if you prefer backend -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+
+  <script>
+    // 🔥 STEP 1: Get Firebase config from https://console.firebase.google.com
+    // 1. Create project → Realtime Database → Start in test mode
+    // 2. Copy config → Replace above firebaseConfig
+    // 3. Deploy: Netlify drag-drop or Vercel
+
+    class SyncListen {
+      constructor() {
+        this.db = window.db; // from Firebase import
+        this.player = null;
+        this.currentRoomId = null;
+        this.userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        this.isHost = false;
+        this.init();
+      }
+
+      init() {
+        this.bindEvents();
+        this.loadYouTubeAPI();
+      }
+
+      bindEvents() {
+        document.getElementById('joinBtn').onclick = () => this.joinRoom();
+        document.getElementById('setVideoBtn').onclick = () => this.setVideo();
+        document.getElementById('playBtn').onclick = () => this.play();
+        document.getElementById('pauseBtn').onclick = () => this.pause();
+        document.getElementById('prevBtn').onclick = () => this.seekRelative(-10);
+        document.getElementById('nextBtn').onclick = () => this.seekRelative(10);
+        document.getElementById('copyBtn').onclick = () => this.copyLink();
+        
+        // Auto-join if roomId in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomFromUrl = urlParams.get('room');
+        if (roomFromUrl) {
+          document.getElementById('roomId').value = roomFromUrl;
+          setTimeout(() => this.joinRoom(), 500);
+        }
+      }
+
+      loadYouTubeAPI() {
+        // YouTube IFrame API loads automatically
+        window.onYouTubeIframeAPIReady = () => {
+          this.createPlayer();
+        };
+      }
+
+      createPlayer() {
+        this.player = new YT.Player('player', {
+          height: '400',
+          width: '720',
+          playerVars: { 
+            'playsinline': 1,
+            'controls': 1,
+            'modestbranding': 1
+          },
+          events: {
+            'onReady': () => this.onPlayerReady(),
+            'onStateChange': (e) => this.onStateChange(e)
+          }
+        });
+      }
+
+      joinRoom() {
+        const roomId = document.getElementById('roomId').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+        if (!roomId) return alert('Enter a room name');
+        
+        this.currentRoomId = roomId;
+        window.history.replaceState(null, '', `?room=${roomId}`);
+        
+        document.getElementById('roomSection').style.display = 'block';
+        document.getElementById('roomLabel').textContent = roomId;
+        document.getElementById('shareUrl').value = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+        
+        this.isHost = true; // First joiner is host (simple)
+        this.listenToRoom();
+        this.updateUsers();
+      }
+
+      listenToRoom() {
+        const roomRef = ref(this.db, `rooms/${this.currentRoomId}`);
+        onValue(roomRef, (snapshot) => {
+          const state = snapshot.val();
+          if (state && state.videoId) {
+            this.loadVideo(state.videoId, state);
+            document.getElementById('status').textContent = 
+              state.isPlaying ? '🎵 Playing' : '⏸️ Paused';
+            document.getElementById('status').className = 
+              state.isPlaying ? 'status playing' : 'status paused';
+          }
+        });
+      }
+
+      setVideo() {
+        const videoId = document.getElementById('videoIdInput').value.trim();
+        if (!videoId || !this.validateYouTubeId(videoId)) {
+          return alert('Enter valid YouTube video ID');
+        }
+        
+        this.updateRoomState({
+          videoId,
+          isPlaying: false,
+          currentTime: 0,
+          updatedAt: Date.now()
+        });
+      }
+
+      play() {
+        if (this.player) this.player.playVideo();
+      }
+
+      pause() {
+        if (this.player) this.player.pauseVideo();
+      }
+
+      seekRelative(seconds) {
+        if (this.player) {
+          const current = this.player.getCurrentTime();
+          this.player.seekTo(current + seconds, true);
+          this.syncState();
+        }
+      }
+
+      onPlayerReady() {
+        console.log('Player ready');
+      }
+
+      onStateChange(event) {
+        if (!this.isHost) return;
+        
+        if (event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.PAUSED) {
+          this.syncState();
+        }
+      }
+
+      syncState() {
+        if (!this.player || !this.currentRoomId) return;
+        
+        const state = {
+          videoId: this.getVideoId(),
+          isPlaying: this.player.getPlayerState() === YT.PlayerState.PLAYING,
+          currentTime: this.player.getCurrentTime(),
+          updatedAt: Date.now()
+        };
+        
+        this.updateRoomState(state);
+      }
+
+      loadVideo(videoId, state) {
+        if (!this.player) return;
+        
+        this.player.loadVideoById(videoId, state?.currentTime || 0);
+        if (!state?.isPlaying) {
+          setTimeout(() => this.player.pauseVideo(), 500);
+        }
+      }
+
+      updateRoomState(state) {
+        if (!this.currentRoomId) return;
+        set(ref(this.db, `rooms/${this.currentRoomId}`), state);
+        
+        // Sync other clients periodically (every 2s while playing)
+        if (state.isPlaying) {
+          setTimeout(() => this.syncState(), 2000);
+        }
+      }
+
+      updateUsers() {
+        const userRef = ref(this.db, `rooms/${this.currentRoomId}/users/${this.userId}`);
+        set(userRef, { joinedAt: Date.now() });
+        onDisconnect(userRef).remove();
+      }
+
+      copyLink() {
+        const link = document.getElementById('shareUrl');
+        link.select();
+        document.execCommand('copy');
+        alert('Link copied! Share with friends 🎉');
+      }
+
+      getVideoId() {
+        return this.player?.getVideoData()?.video_id || '';
+      }
+
+      validateYouTubeId(id) {
+        return /^[a-zA-Z0-9_-]{11}$/.test(id);
+      }
+    }
+
+    // Auto periodic sync for clients (catches drift)
+    setInterval(() => {
+      if (window.app && window.app.currentRoomId && window.app.player) {
+        const localTime = window.app.player.getCurrentTime();
+        // Check if drifted >1s from server state (you'd fetch from Firebase)
+        // Simple: re-sync every 30s
+        if (Date.now() % 30000 < 1000) {
+          window.app.syncState();
+        }
+      }
+    }, 5000);
+
+    // Start app
+    window.app = new SyncListen();
+  </script>
+</body>
+</html>
